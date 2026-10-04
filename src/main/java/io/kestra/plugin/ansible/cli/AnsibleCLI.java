@@ -384,6 +384,30 @@ public class AnsibleCLI extends Task implements RunnableTask<AnsibleCLI.AnsibleO
     @PluginProperty(group = "main")
     protected Property<List<String>> commands;
 
+    @Schema(title = "Dry-run check mode (--check)")
+    @Builder.Default
+    private Property<Boolean> checkMode = Property.ofValue(false);
+
+    @Schema(title = "Show line-by-line configuration diffs (--diff)")
+    @Builder.Default
+    private Property<Boolean> diff = Property.ofValue(false);
+
+    @Schema(title = "Limit execution to specific hosts or groups (--limit)")
+    private Property<String> limit;
+
+    @Schema(title = "Tags to execute (--tags)")
+    private Property<List<String>> tags;
+
+    @Schema(title = "Tags to bypass (--skip-tags)")
+    private Property<List<String>> skipTags;
+
+    @Schema(title = "Verbosity level (0 to 4)")
+    @Builder.Default
+    private Property<Integer> verbosity = Property.ofValue(0);
+
+    @Schema(title = "Number of parallel forks")
+    private Property<Integer> forks;
+
     @Schema(
         title = "Additional environment variables",
         description = "Variables injected into the task runner environment for every command."
@@ -488,6 +512,8 @@ public class AnsibleCLI extends Task implements RunnableTask<AnsibleCLI.AnsibleO
     @PluginProperty(group = "execution")
     protected Property<LogsMode> logsMode = Property.ofValue(LogsMode.SUMMARY);
 
+
+
     @Schema(
         title = "Enable log streaming during playbook execution",
         description = """
@@ -584,6 +610,51 @@ public class AnsibleCLI extends Task implements RunnableTask<AnsibleCLI.AnsibleO
     @PluginProperty(group = "destination")
     private Property<List<String>> outputFiles;
 
+    private String addTypedPlaybookOptions(RunContext runContext, String cmd) throws IllegalVariableEvaluationException {
+        if (!cmd.trim().startsWith("ansible-playbook") && !cmd.trim().startsWith("ansible ")) {
+            return cmd;
+        }
+
+        StringBuilder sb = new StringBuilder(cmd);
+
+        Boolean isCheck = runContext.render(this.checkMode).as(Boolean.class).orElse(false);
+        if (isCheck != null && isCheck) {
+            sb.append(" --check");
+        }
+
+        Boolean isDiff = runContext.render(this.diff).as(Boolean.class).orElse(false);
+        if (isDiff != null && isDiff) {
+            sb.append(" --diff");
+        }
+
+        String rLimit = runContext.render(this.limit).as(String.class).orElse(null);
+        if (rLimit != null && !rLimit.isBlank()) {
+            sb.append(" --limit ").append(rLimit);
+        }
+
+        List<String> rTags = runContext.render(this.tags).asList(String.class);
+        if (rTags != null && !rTags.isEmpty()) {
+            sb.append(" --tags ").append(String.join(",", rTags));
+        }
+
+        List<String> rSkipTags = runContext.render(this.skipTags).asList(String.class);
+        if (rSkipTags != null && !rSkipTags.isEmpty()) {
+            sb.append(" --skip-tags ").append(String.join(",", rSkipTags));
+        }
+
+        Integer rForks = runContext.render(this.forks).as(Integer.class).orElse(null);
+        if (rForks != null) {
+            sb.append(" --forks ").append(rForks);
+        }
+
+        Integer rVerbosity = runContext.render(this.verbosity).as(Integer.class).orElse(0);
+        if (rVerbosity != null && rVerbosity > 0) {
+            sb.append(" -").append("v".repeat(Math.min(rVerbosity, 4)));
+        }
+
+        return sb.toString();
+    }
+
     @Override
     public AnsibleOutput run(RunContext runContext) throws Exception {
         List<String> outputFilesList = new ArrayList<>(runContext.render(this.outputFiles).asList(String.class));
@@ -641,7 +712,15 @@ public class AnsibleCLI extends Task implements RunnableTask<AnsibleCLI.AnsibleO
 
         DependencyInstall dependencyInstall = planDependencyInstall(runContext, workingDir);
 
-        List<String> rCommands = runContext.render(this.commands).asList(String.class, extraVars);
+        List<String> rCommands = runContext.render(this.commands).asList(String.class, extraVars).stream()
+            .map(cmd -> {
+                try {
+                    return addTypedPlaybookOptions(runContext, cmd);
+                } catch (IllegalVariableEvaluationException e) {
+                    throw new RuntimeException(e);
+                }
+            })
+            .collect(Collectors.toList());
 
         // run each ansible-playbook separately and merge outputs
         Map<String, Object> mergedVars = new HashMap<>();
