@@ -122,6 +122,39 @@ class AnsibleCLITest {
     }
 
     @Test
+    void addTypedPlaybookOptions_shouldInjectFlagsCorrectly() throws Exception {
+        AnsibleCLI task = AnsibleCLI.builder()
+            .id(IdUtils.create())
+            .type(AnsibleCLI.class.getName())
+            .checkMode(Property.ofValue(true))
+            .diff(Property.ofValue(true))
+            .limit(Property.ofValue("web;&db"))
+            .tags(Property.ofValue(List.of("tag1", "tag2")))
+            .skipTags(Property.ofValue(List.of("skip1")))
+            .forks(Property.ofValue(10))
+            .verbosity(Property.ofValue(3))
+            .commands(Property.ofValue(List.of("dummy")))
+            .build();
+
+        RunContext runContext = TestsUtils.mockRunContext(runContextFactory, task, Map.of());
+
+        java.lang.reflect.Method method = AnsibleCLI.class.getDeclaredMethod("addTypedPlaybookOptions", RunContext.class, String.class);
+        method.setAccessible(true);
+
+        String result = (String) method.invoke(task, runContext, "ansible-playbook site.yml && echo done");
+
+        assertThat(result, is("ansible-playbook --check --diff --limit 'web;&db' --tags 'tag1,tag2' --skip-tags 'skip1' --forks 10 -vvv site.yml && echo done"));
+
+        // Ad-hoc commands should not receive the flags
+        String adhocResult = (String) method.invoke(task, runContext, "ansible all -m ping");
+        assertThat(adhocResult, is("ansible all -m ping"));
+
+        // Piped commands should inject right after binary
+        String pipeResult = (String) method.invoke(task, runContext, "ansible-playbook -i inv site.yml | tee out.log");
+        assertThat(pipeResult, is("ansible-playbook --check --diff --limit 'web;&db' --tags 'tag1,tag2' --skip-tags 'skip1' --forks 10 -vvv -i inv site.yml | tee out.log"));
+    }
+
+    @Test
     @SuppressWarnings("unchecked")
     void run() throws Exception {
         String envKey = "MY_KEY";
