@@ -36,6 +36,9 @@ public class ArchiveUtils {
                     if (file.equals(targetZipFile)) {
                         return FileVisitResult.CONTINUE;
                     }
+                    if (Files.isSymbolicLink(file)) {
+                        throw new IOException("Symlinks are not allowed in archives: " + file);
+                    }
                     String relativePath = sourceDir.relativize(file).toString().replace("\\", "/");
                     ZipEntry zipEntry = new ZipEntry(relativePath);
                     zos.putNextEntry(zipEntry);
@@ -73,8 +76,8 @@ public class ArchiveUtils {
                 if (entryCount > MAX_ENTRIES) {
                     throw new IOException("Archive contains too many entries (exceeds " + MAX_ENTRIES + ").");
                 }
-                Path resolvedPath = targetDir.resolve(entry.getName()).normalize();
-                if (!resolvedPath.startsWith(targetDir)) {
+                Path resolvedPath = targetDir.normalize().resolve(entry.getName()).normalize();
+                if (!resolvedPath.startsWith(targetDir.normalize())) {
                     throw new IOException("Zip slip security exception: " + entry.getName());
                 }
 
@@ -121,8 +124,8 @@ public class ArchiveUtils {
                     throw new IOException("Symlinks and hard-links are not allowed in archives.");
                 }
 
-                Path resolvedPath = targetDir.resolve(entry.getName()).normalize();
-                if (!resolvedPath.startsWith(targetDir)) {
+                Path resolvedPath = targetDir.normalize().resolve(entry.getName()).normalize();
+                if (!resolvedPath.startsWith(targetDir.normalize())) {
                     throw new IOException("Tar slip security exception: " + entry.getName());
                 }
 

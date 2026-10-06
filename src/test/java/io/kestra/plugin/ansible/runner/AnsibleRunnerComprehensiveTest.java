@@ -149,6 +149,7 @@ public class AnsibleRunnerComprehensiveTest {
             .build();
 
         AnsibleRunner.Output output = task.run(runContext);
+        assertFalse(Files.exists(runContext.workingDir().path().resolve("runner/env")), "env directory must be deleted");
         long dur = System.currentTimeMillis() - start;
 
         assertNotNull(output);
@@ -189,6 +190,7 @@ public class AnsibleRunnerComprehensiveTest {
             .build();
 
         AnsibleRunner.Output output = task.run(runContext);
+        assertFalse(Files.exists(runContext.workingDir().path().resolve("runner/env")), "env directory must be deleted");
         long dur = System.currentTimeMillis() - start;
 
         Path playbook = runContext.workingDir().path().resolve("runner/project/audit.yml");
@@ -238,6 +240,7 @@ public class AnsibleRunnerComprehensiveTest {
             .build();
 
         AnsibleRunner.Output output = task.run(runContext);
+        assertFalse(Files.exists(runContext.workingDir().path().resolve("runner/env")), "env directory must be deleted");
         long dur = System.currentTimeMillis() - start;
 
         Path extractedPb = runContext.workingDir().path().resolve("runner/project/deploy.yml");
@@ -284,6 +287,7 @@ public class AnsibleRunnerComprehensiveTest {
             .build();
 
         AnsibleRunner.Output output = task.run(runContext);
+        assertFalse(Files.exists(runContext.workingDir().path().resolve("runner/env")), "env directory must be deleted");
         long dur = System.currentTimeMillis() - start;
 
         Path extractedPb = runContext.workingDir().path().resolve("runner/project/release.yml");
@@ -334,6 +338,7 @@ public class AnsibleRunnerComprehensiveTest {
             .build();
 
         AnsibleRunner.Output output = task.run(runContext);
+        assertFalse(Files.exists(runContext.workingDir().path().resolve("runner/env")), "env directory must be deleted");
         long dur = System.currentTimeMillis() - start;
 
         Path runnerProject = workingDir.resolve("runner/project");
@@ -367,6 +372,7 @@ public class AnsibleRunnerComprehensiveTest {
             .build();
 
         AnsibleRunner.Output output = task.run(runContext);
+        assertFalse(Files.exists(runContext.workingDir().path().resolve("runner/env")), "env directory must be deleted");
         long dur = System.currentTimeMillis() - start;
 
         Path hosts = runContext.workingDir().path().resolve("runner/inventory/hosts");
@@ -402,6 +408,7 @@ public class AnsibleRunnerComprehensiveTest {
             .build();
 
         AnsibleRunner.Output output = task.run(runContext);
+        assertFalse(Files.exists(runContext.workingDir().path().resolve("runner/env")), "env directory must be deleted");
         long dur = System.currentTimeMillis() - start;
 
         Path hosts = runContext.workingDir().path().resolve("runner/inventory/hosts");
@@ -447,6 +454,7 @@ public class AnsibleRunnerComprehensiveTest {
             .build();
 
         AnsibleRunner.Output output = task.run(runContext);
+        assertFalse(Files.exists(runContext.workingDir().path().resolve("runner/env")), "env directory must be deleted");
         long dur = System.currentTimeMillis() - start;
 
         Path hosts = runContext.workingDir().path().resolve("runner/inventory/hosts");
@@ -478,6 +486,7 @@ public class AnsibleRunnerComprehensiveTest {
             .build();
 
         AnsibleRunner.Output output = task.run(runContext);
+        assertFalse(Files.exists(runContext.workingDir().path().resolve("runner/env")), "env directory must be deleted");
         long dur = System.currentTimeMillis() - start;
 
         Path cmdline = runContext.workingDir().path().resolve("runner/env_backup/cmdline");
@@ -510,6 +519,7 @@ public class AnsibleRunnerComprehensiveTest {
             .build();
 
         AnsibleRunner.Output output = task.run(runContext);
+        assertFalse(Files.exists(runContext.workingDir().path().resolve("runner/env")), "env directory must be deleted");
         long dur = System.currentTimeMillis() - start;
 
         Path cmdline = runContext.workingDir().path().resolve("runner/env_backup/cmdline");
@@ -542,6 +552,7 @@ public class AnsibleRunnerComprehensiveTest {
             .build();
 
         AnsibleRunner.Output output = task.run(runContext);
+        assertFalse(Files.exists(runContext.workingDir().path().resolve("runner/env")), "env directory must be deleted");
         long dur = System.currentTimeMillis() - start;
 
         Path cmdline = runContext.workingDir().path().resolve("runner/env_backup/cmdline");
@@ -580,6 +591,7 @@ public class AnsibleRunnerComprehensiveTest {
             .build();
 
         AnsibleRunner.Output output = task.run(runContext);
+        assertFalse(Files.exists(runContext.workingDir().path().resolve("runner/env")), "env directory must be deleted");
         long dur = System.currentTimeMillis() - start;
 
         Path extravars = runContext.workingDir().path().resolve("runner/env_backup/extravars");
@@ -618,6 +630,7 @@ public class AnsibleRunnerComprehensiveTest {
             .build();
 
         AnsibleRunner.Output output = task.run(runContext);
+        assertFalse(Files.exists(runContext.workingDir().path().resolve("runner/env")), "env directory must be deleted");
         long dur = System.currentTimeMillis() - start;
 
         Path envvars = runContext.workingDir().path().resolve("runner/env_backup/envvars");
@@ -650,6 +663,7 @@ public class AnsibleRunnerComprehensiveTest {
             .build();
 
         AnsibleRunner.Output output = task.run(runContext);
+        assertFalse(Files.exists(runContext.workingDir().path().resolve("runner/env")), "env directory must be deleted");
         long dur = System.currentTimeMillis() - start;
 
         Path passwords = runContext.workingDir().path().resolve("runner/env_backup/passwords");
@@ -684,6 +698,7 @@ public class AnsibleRunnerComprehensiveTest {
             .build();
 
         AnsibleRunner.Output output = task.run(runContext);
+        assertFalse(Files.exists(runContext.workingDir().path().resolve("runner/env")), "env directory must be deleted");
         long dur = System.currentTimeMillis() - start;
 
         Path sshKeyFile = runContext.workingDir().path().resolve("runner/env_backup/ssh_key");
@@ -720,6 +735,7 @@ public class AnsibleRunnerComprehensiveTest {
             .build();
 
         AnsibleRunner.Output output = task.run(runContext);
+        assertFalse(Files.exists(runContext.workingDir().path().resolve("runner/env")), "env directory must be deleted");
         long dur = System.currentTimeMillis() - start;
 
         Path settings = runContext.workingDir().path().resolve("runner/env_backup/settings");
@@ -754,6 +770,7 @@ public class AnsibleRunnerComprehensiveTest {
             .build();
 
         AnsibleRunner.Output output = task.run(runContext);
+        assertFalse(Files.exists(runContext.workingDir().path().resolve("runner/env")), "env directory must be deleted");
         long dur = System.currentTimeMillis() - start;
 
         assertNotNull(output);
@@ -816,6 +833,7 @@ public class AnsibleRunnerComprehensiveTest {
             .build();
 
         AnsibleRunner.Output output = task.run(runContext);
+        assertFalse(Files.exists(runContext.workingDir().path().resolve("runner/env")), "env directory must be deleted");
         long dur = System.currentTimeMillis() - start;
 
         assertNotNull(output.getArtifactsUri());
@@ -849,6 +867,7 @@ public class AnsibleRunnerComprehensiveTest {
             .build();
 
         AnsibleRunner.Output output = task.run(runContext);
+        assertFalse(Files.exists(runContext.workingDir().path().resolve("runner/env")), "env directory must be deleted");
         long dur = System.currentTimeMillis() - start;
 
         Path artifactsDir = runContext.workingDir().path().resolve("runner/artifacts");
@@ -885,6 +904,7 @@ public class AnsibleRunnerComprehensiveTest {
             .build();
 
         AnsibleRunner.Output output = task.run(runContext);
+        assertFalse(Files.exists(runContext.workingDir().path().resolve("runner/env")), "env directory must be deleted");
         long dur = System.currentTimeMillis() - start;
 
         assertEquals("successful", output.getStatus());
@@ -922,6 +942,7 @@ public class AnsibleRunnerComprehensiveTest {
             .build();
 
         AnsibleRunner.Output output = task.run(runContext);
+        assertFalse(Files.exists(runContext.workingDir().path().resolve("runner/env")), "env directory must be deleted");
         long dur = System.currentTimeMillis() - start;
 
         Path hostsJson = runContext.workingDir().path().resolve("runner/inventory/hosts.json");
@@ -959,6 +980,7 @@ public class AnsibleRunnerComprehensiveTest {
             .build();
 
         AnsibleRunner.Output output = task.run(runContext);
+        assertFalse(Files.exists(runContext.workingDir().path().resolve("runner/env")), "env directory must be deleted");
         long dur = System.currentTimeMillis() - start;
 
         Path hostsJson = runContext.workingDir().path().resolve("runner/inventory/hosts.json");
@@ -994,6 +1016,7 @@ public class AnsibleRunnerComprehensiveTest {
             .build();
 
         AnsibleRunner.Output output = task.run(runContext);
+        assertFalse(Files.exists(runContext.workingDir().path().resolve("runner/env")), "env directory must be deleted");
         long dur = System.currentTimeMillis() - start;
 
         assertTrue(Files.exists(runContext.workingDir().path().resolve("runner/inventory/inv1.ini")));
@@ -1024,6 +1047,7 @@ public class AnsibleRunnerComprehensiveTest {
             .build();
 
         AnsibleRunner.Output output = task.run(runContext);
+        assertFalse(Files.exists(runContext.workingDir().path().resolve("runner/env")), "env directory must be deleted");
         long dur = System.currentTimeMillis() - start;
 
         assertNotNull(output.getOutputLogFile(), "outputLogFile URI must not be null when outputLogFile=true");
@@ -1055,6 +1079,7 @@ public class AnsibleRunnerComprehensiveTest {
             .build();
 
         AnsibleRunner.Output output = task.run(runContext);
+        assertFalse(Files.exists(runContext.workingDir().path().resolve("runner/env")), "env directory must be deleted");
         long dur = System.currentTimeMillis() - start;
 
         assertEquals(0, output.getRc());
@@ -1108,6 +1133,7 @@ public class AnsibleRunnerComprehensiveTest {
             .build();
 
         AnsibleRunner.Output output = task.run(runContext);
+        assertFalse(Files.exists(runContext.workingDir().path().resolve("runner/env")), "env directory must be deleted");
         long dur = System.currentTimeMillis() - start;
 
         assertNotNull(output.getResultsUri(), "resultsUri must point to single consolidated results.json in internal storage");
@@ -1145,6 +1171,7 @@ public class AnsibleRunnerComprehensiveTest {
             .build();
 
         AnsibleRunner.Output output = task.run(runContext);
+        assertFalse(Files.exists(runContext.workingDir().path().resolve("runner/env")), "env directory must be deleted");
         long dur = System.currentTimeMillis() - start;
 
         assertEquals(0, output.getRc());
