@@ -449,18 +449,18 @@ public class AnsibleCLI extends Task implements RunnableTask<AnsibleCLI.AnsibleO
 
     @Schema(
         title = "Verbosity level (0 to 4)",
-        description = "Sets the verbosity (-v to -vvvv). Capped at 4. Applies only to ansible-playbook commands."
+        description = "Sets the verbosity (-v to -vvvv). Default 0, capped at 4. Applies only to ansible-playbook commands."
     )
     @Builder.Default
     @PluginProperty(group = "execution")
-    protected Property<Integer> verbosity = Property.ofValue(0);
+    protected Property<@Min(0) @Max(4) Integer> verbosity = Property.ofValue(0);
 
     @Schema(
         title = "Number of parallel forks",
-        description = "Sets the --forks parameter. Applies only to ansible-playbook commands."
+        description = "Sets the --forks parameter. Must be at least 1. Applies only to ansible-playbook commands."
     )
     @PluginProperty(group = "execution")
-    protected Property<Integer> forks;
+    protected Property<@Min(1) Integer> forks;
 
     @Schema(
         title = "Additional environment variables",
@@ -566,8 +566,6 @@ public class AnsibleCLI extends Task implements RunnableTask<AnsibleCLI.AnsibleO
     @PluginProperty(group = "execution")
     protected Property<LogsMode> logsMode = Property.ofValue(LogsMode.SUMMARY);
 
-
-
     @Schema(
         title = "Enable log streaming during playbook execution",
         description = """
@@ -664,9 +662,9 @@ public class AnsibleCLI extends Task implements RunnableTask<AnsibleCLI.AnsibleO
     @PluginProperty(group = "destination")
     private Property<List<String>> outputFiles;
 
-    private static final Pattern PLAYBOOK_BINARY = Pattern.compile("(^|\\s)ansible-playbook(?=\\s|$)");
+    static final Pattern PLAYBOOK_BINARY = Pattern.compile("(^|[\\s;&|(\\[])((?:\\S*/)?ansible-playbook)(?=\\s|$)");
 
-    private String addTypedPlaybookOptions(RunContext runContext, String cmd) throws IllegalVariableEvaluationException {
+    String addTypedPlaybookOptions(RunContext runContext, String cmd) throws IllegalVariableEvaluationException {
         List<String> flags = new ArrayList<>();
         if (runContext.render(this.checkMode).as(Boolean.class).orElse(false)) {
             flags.add("--check");
@@ -700,7 +698,8 @@ public class AnsibleCLI extends Task implements RunnableTask<AnsibleCLI.AnsibleO
             return cmd;
         }
         // right after the binary, so a pipe, `&&` chain or trailing newline cannot detach the flags from it
-        return cmd.substring(0, playbook.end()) + " " + String.join(" ", flags) + cmd.substring(playbook.end());
+        String flagString = String.join(" ", flags);
+        return playbook.replaceAll(m -> java.util.regex.Matcher.quoteReplacement(m.group() + " " + flagString));
     }
 
     @Override
