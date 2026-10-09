@@ -112,7 +112,7 @@ import lombok.experimental.SuperBuilder;
                 tasks:
                   - id: ansible_task
                     type: io.kestra.plugin.ansible.cli.AnsibleCLI
-                    limit: "web:&db"
+                    limit: "localhost"
                     tags:
                       - update
                     checkMode: true
