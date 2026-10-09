@@ -1247,7 +1247,7 @@ public class AnsibleRunnerComprehensiveTest {
         int total = 50_000;
 
         AnsibleRunnerLogConsumer consumer = new AnsibleRunnerLogConsumer(
-            runContext, true, LogsMode.FULL, spool, 1_000L, 100);
+            runContext, true, LogsMode.FULL, spool, 1_000L, 100, java.util.Collections.emptyList());
         for (int i = 0; i < total; i++) {
             consumer.accept("ok: [router-" + i + "] => (item=Gi0/" + i + ")", false, java.time.Instant.now());
         }
@@ -1271,7 +1271,7 @@ public class AnsibleRunnerComprehensiveTest {
         Path spool = runContext.workingDir().path().resolve("summary.log");
 
         AnsibleRunnerLogConsumer consumer = new AnsibleRunnerLogConsumer(
-            runContext, true, LogsMode.SUMMARY, spool, 0L, 100);
+            runContext, true, LogsMode.SUMMARY, spool, 0L, 100, java.util.Collections.emptyList());
         consumer.accept("TASK [loop] ****", false, java.time.Instant.now());
         for (int i = 0; i < 2_000; i++) {
             consumer.accept("ok: [router-1] => (item=" + i + ")", false, java.time.Instant.now());

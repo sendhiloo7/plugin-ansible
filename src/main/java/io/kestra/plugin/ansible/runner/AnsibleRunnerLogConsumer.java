@@ -15,6 +15,7 @@ import java.time.Instant;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.List;
 
 /**
  * Intercepts process output line-by-line and forwards it to the Kestra execution logger
@@ -39,6 +40,7 @@ public class AnsibleRunnerLogConsumer extends DefaultLogConsumer {
     private final long maxLogLines;
     private final int batchSize;
     private final Path spoolFile;
+    private final List<String> secrets;
     private final BufferedWriter spoolWriter;
     private final ScheduledExecutorService flusher;
 
@@ -54,7 +56,7 @@ public class AnsibleRunnerLogConsumer extends DefaultLogConsumer {
     private boolean closed = false;
 
     public AnsibleRunnerLogConsumer(RunContext runContext, boolean streamLogs, LogsMode logsMode, Path spoolFile,
-                                    long maxLogLines, int batchSize) {
+                                    long maxLogLines, int batchSize, java.util.List<String> secrets) {
         super(runContext);
         this.runContext = runContext;
         this.streamLogs = streamLogs;
@@ -62,6 +64,7 @@ public class AnsibleRunnerLogConsumer extends DefaultLogConsumer {
         this.maxLogLines = maxLogLines;
         this.batchSize = Math.max(1, batchSize);
         this.spoolFile = spoolFile;
+        this.secrets = secrets != null ? secrets : java.util.Collections.emptyList();
 
         try {
             this.spoolWriter = spoolFile != null
@@ -88,6 +91,12 @@ public class AnsibleRunnerLogConsumer extends DefaultLogConsumer {
     public synchronized void accept(String line, Boolean isStdErr, Instant instant) {
         if (line == null || line.isBlank()) {
             return;
+        }
+
+        for (String secret : secrets) {
+            if (secret != null && !secret.isBlank()) {
+                line = line.replace(secret, "***");
+            }
         }
 
         // Always spool the complete raw output to disk (bounded memory)

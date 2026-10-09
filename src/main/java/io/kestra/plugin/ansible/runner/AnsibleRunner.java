@@ -45,7 +45,8 @@ import java.nio.file.attribute.PosixFilePermissions;
 import java.time.Duration;
 import java.util.*;
 import java.util.stream.Stream;
-
+import java.util.regex.Pattern;
+import java.util.regex.Matcher;
 @SuperBuilder
 @ToString
 @EqualsAndHashCode
@@ -83,8 +84,8 @@ public class AnsibleRunner extends Task implements
     OutputFilesInterface {
 
     private static final String DEFAULT_CONTAINER_IMAGE = "quay.io/ansible/ansible-runner:stable-2.12-latest";
-    private static final java.util.regex.Pattern PKG_ALLOWLIST = java.util.regex.Pattern.compile("^[a-zA-Z0-9_][a-zA-Z0-9_\\-\\.\\=\\>\\<\\~]*$");
-    private static final java.util.regex.Pattern WHITESPACE_PATTERN = java.util.regex.Pattern.compile(".*\\s.*");
+    private static final Pattern PKG_ALLOWLIST = Pattern.compile("^[a-zA-Z0-9_][a-zA-Z0-9_\\-\\.\\=\\>\\<\\~]*$");
+    private static final Pattern WHITESPACE_PATTERN = Pattern.compile(".*\\s.*");
     private static final String DEFAULT_PLAYBOOK = "site.yml";
     private static final long DEFAULT_MAX_OUTPUTS_SIZE = 10 * 1024 * 1024L; // 10MB
     private static final long DEFAULT_MAX_LOG_LINES = 10_000L;
@@ -415,13 +416,23 @@ public class AnsibleRunner extends Task implements
             logSpoolFile.toFile().setReadable(true, true);
             logSpoolFile.toFile().setWritable(true, true);
         }
+        List<String> secrets = new ArrayList<>();
+        if (this.sshKey != null) runContext.render(this.sshKey).as(String.class).ifPresent(secrets::add);
+        if (this.passwords != null) {
+            Map<String, String> map = runContext.render(this.passwords).asMap(String.class, String.class);
+            if (map != null) {
+                secrets.addAll(map.values());
+            }
+        }
+
         logConsumer = new AnsibleRunnerLogConsumer(
             runContext,
             shouldStreamLogs,
             resolvedLogsMode,
             logSpoolFile,
             resolvedMaxLogLines,
-            LOG_BATCH_SIZE
+            LOG_BATCH_SIZE,
+            secrets
         );
 
         CommandsWrapper commandsWrapper = new CommandsWrapper(runContext)
@@ -462,15 +473,13 @@ public class AnsibleRunner extends Task implements
 
         // 5. Parse Status, Return Code, and Job Events Telemetry
         Path identArtifactsDir = artifactsBaseDir.resolve(ident);
-        ExecutionTelemetry telemetry = parseTelemetry(identArtifactsDir, processExitCode);
+        ExecutionTelemetry telemetry = parseTelemetry(runContext, identArtifactsDir, processExitCode);
 
         // Check telemetry size against maxOutputsSize
         long maxSize = runContext.render(this.maxOutputsSize).as(Long.class).orElse(DEFAULT_MAX_OUTPUTS_SIZE);
-        if (telemetry.stats != null) {
-            String statsJson = JacksonMapper.ofJson().writeValueAsString(telemetry.stats);
-            if (statsJson.getBytes(StandardCharsets.UTF_8).length > maxSize) {
-                throw new IllegalStateException("Ansible outputs telemetry exceeds the configured maxOutputsSize of " + maxSize + " bytes.");
-            }
+        String telemetryJson = JacksonMapper.ofJson().writeValueAsString(telemetry);
+        if (telemetryJson.getBytes(StandardCharsets.UTF_8).length > maxSize) {
+            throw new IllegalStateException("Ansible outputs telemetry exceeds the configured maxOutputsSize of " + maxSize + " bytes.");
         }
 
         // 6. Generate single consolidated results.json file and upload to Internal Storage if saveResults is true
@@ -670,6 +679,10 @@ public class AnsibleRunner extends Task implements
                         writePlaybookContent(projectDir, playbookName, sourceStr);
                     }
                 } catch (Exception e) {
+                    if (sourceStr.startsWith("kestra://")) {
+                        throw new IllegalStateException("Failed to read Kestra internal storage playbook: " + sourceStr, e);
+                    }
+                    runContext.logger().warn("Failed to parse playbook as local file, treating as inline content");
                     writePlaybookContent(projectDir, playbookName, sourceStr);
                 }
             }
@@ -1067,7 +1080,7 @@ public class AnsibleRunner extends Task implements
         }
     }
 
-    private ExecutionTelemetry parseTelemetry(Path identArtifactsDir, int processExitCode) {
+    private ExecutionTelemetry parseTelemetry(RunContext runContext, Path identArtifactsDir, int processExitCode) {
         String status = "failed";
         int rc = processExitCode;
         Set<String> failedHostsSet = new java.util.LinkedHashSet<>();
@@ -1095,7 +1108,9 @@ public class AnsibleRunner extends Task implements
             if (Files.exists(rcFile)) {
                 try {
                     rc = Integer.parseInt(Files.readString(rcFile, StandardCharsets.UTF_8).trim());
-                } catch (Exception ignored) {}
+                } catch (Exception e) {
+                    runContext.logger().warn("Failed to parse rc file: {}", e.getMessage());
+                }
             }
 
             // Read job_events
@@ -1131,17 +1146,6 @@ public class AnsibleRunner extends Task implements
                                     failedTask.put("error", msg);
                                 }
                                 if (failedTasks.size() < 1000) failedTasks.add(failedTask);
-                            }
-
-                            if ("runner_on_ok".equals(event) || "runner_on_changed".equals(event) || "runner_on_skipped".equals(event) || "runner_on_failed".equals(event)) {
-                                Map<String, Object> taskRecord = new LinkedHashMap<>();
-                                taskRecord.put("host", host);
-                                taskRecord.put("task", taskName);
-                                taskRecord.put("status", event.replace("runner_on_", ""));
-                                if (eventData.has("duration")) {
-                                    taskRecord.put("duration", eventData.path("duration").asDouble());
-                                }
-                                // tasks.add(taskRecord); // omitted from memory
                             }
 
                             if ("playbook_on_stats".equals(event)) {
@@ -1185,7 +1189,9 @@ public class AnsibleRunner extends Task implements
                                     }
                                 }
                             }
-                        } catch (Exception ignored) {}
+                        } catch (Exception e) {
+                            runContext.logger().warn("Failed to parse job event json: {}", e.getMessage());
+                        }
                     }
                 } catch (IOException ignored) {}
             }
