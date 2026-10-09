@@ -1,6 +1,5 @@
 package io.kestra.plugin.ansible.runner;
 
-import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import io.kestra.core.exceptions.IllegalVariableEvaluationException;
 import io.kestra.core.models.annotations.Example;
@@ -27,6 +26,7 @@ import io.kestra.plugin.ansible.runner.utils.ArchiveUtils;
 import io.kestra.plugin.scripts.exec.scripts.models.ScriptOutput;
 import io.kestra.plugin.scripts.exec.scripts.runners.CommandsWrapper;
 import io.kestra.plugin.scripts.runner.docker.Docker;
+import java.io.InputStream;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
@@ -36,17 +36,33 @@ import lombok.*;
 import lombok.experimental.SuperBuilder;
 import org.apache.commons.io.FileUtils;
 
-import java.io.*;
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.*;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.nio.file.FileVisitResult;
+import java.nio.file.SimpleFileVisitor;
+import java.nio.file.StandardCopyOption;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.nio.file.attribute.PosixFilePermission;
 import java.nio.file.attribute.PosixFilePermissions;
 import java.time.Duration;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.LinkedHashMap;
+import java.util.Comparator;
+import java.util.Arrays;
+import java.util.Iterator;
+import java.util.Optional;
 import java.util.stream.Stream;
 import java.util.regex.Pattern;
-import java.util.regex.Matcher;
 @SuperBuilder
 @ToString
 @EqualsAndHashCode
@@ -69,9 +85,13 @@ import java.util.regex.Matcher;
                   - id: run_ansible
                     type: io.kestra.plugin.ansible.runner.AnsibleRunner
                     containerImage: quay.io/ansible/ansible-runner:latest
+                    namespaceFiles:
+                      enabled: true
                     project:
                       playbook: site.yml
                     inventory: inventory/hosts.ini
+                    streamLogs: true
+                    outputLogFile: true
                     verbosity: 1
                 """
         )
@@ -190,6 +210,7 @@ public class AnsibleRunner extends Task implements
     )
     @Builder.Default
     @PluginProperty(group = "advanced")
+    @Min(0)
     private Property<Long> maxLogLines = Property.ofValue(DEFAULT_MAX_LOG_LINES);
 
     @Schema(
@@ -206,6 +227,7 @@ public class AnsibleRunner extends Task implements
     )
     @Builder.Default
     @PluginProperty(group = "advanced")
+    @Min(0)
     private Property<Long> maxOutputsSize = Property.ofValue(DEFAULT_MAX_OUTPUTS_SIZE);
 
     @Schema(
@@ -275,25 +297,12 @@ public class AnsibleRunner extends Task implements
         .playbook(Property.ofValue(DEFAULT_PLAYBOOK))
         .build();
 
-    @Schema(title = "Project playbook source directory or archive URI")
-    private Property<String> projectSource;
-
-    @Schema(title = "Entrypoint playbook filename")
-    @Builder.Default
-    private Property<String> playbook = Property.ofValue(DEFAULT_PLAYBOOK);
-
     // --- Inventory Contract (Nested & Flat support) ---
     @Schema(
         title = "Inventory configuration or file path",
         anyOf = {Inventory.class, String.class}
     )
     private Inventory inventory;
-
-    @Schema(title = "Inventory file URI or cached JSON")
-    private Property<String> inventoryFile;
-
-    @Schema(title = "Inline inventory content")
-    private Property<String> inventoryInline;
 
     // --- Environment & Credentials (Nested & Flat support) ---
     @Schema(title = "Environment and credentials configuration")
@@ -505,7 +514,6 @@ public class AnsibleRunner extends Task implements
             Files.deleteIfExists(resultsFile);
         }
 
-        // 7. Zip raw artifacts directory if saveArtifacts is true -> runContext.storage().putFile()
         Path zipFile = workingDir.resolve("artifacts-" + ident + ".zip");
         URI artifactsUri = null;
         boolean shouldSaveArtifacts = runContext.render(this.saveArtifacts).as(Boolean.class).orElse(true);
@@ -514,7 +522,6 @@ public class AnsibleRunner extends Task implements
             artifactsUri = runContext.storage().putFile(zipFile.toFile());
         }
 
-        // 8. Store the complete log file if outputLogFile is true, or automatically if UI streaming was truncated
         if (logConsumer != null) {
             logConsumer.close();
         }
@@ -524,7 +531,6 @@ public class AnsibleRunner extends Task implements
         }
         Files.deleteIfExists(logSpoolFile);
 
-        // 9. Clean up local artifacts if requested
         boolean shouldClean = runContext.render(this.autoCleanArtifacts).as(Boolean.class).orElse(true);
         if (shouldClean) {
             FileUtils.deleteQuietly(artifactsBaseDir.toFile());
@@ -537,7 +543,6 @@ public class AnsibleRunner extends Task implements
 
         boolean shouldOutputSummary = runContext.render(this.outputSummary).as(Boolean.class).orElse(false);
 
-        // 10. Construct Output
         Output output = Output.builder()
             .resultsUri(resultsUri)
             .artifactsUri(artifactsUri)
@@ -554,7 +559,8 @@ public class AnsibleRunner extends Task implements
 
         boolean failTask = runContext.render(this.failOnErrors).as(Boolean.class).orElse(true);
         if (failTask && !"successful".equalsIgnoreCase(telemetry.status)) {
-            throw new RuntimeException("Ansible Runner failed with status '" + telemetry.status + "' and exit code " + telemetry.rc +
+            runContext.logger().error("Ansible Runner failed. Results: {}, Artifacts: {}, Logs: {}", resultsUri, artifactsUri, logFileUri);
+            throw new IllegalStateException("Ansible Runner failed with status '" + telemetry.status + "' and exit code " + telemetry.rc +
                 " on hosts: " + telemetry.failedHosts);
         }
 
@@ -615,9 +621,6 @@ public class AnsibleRunner extends Task implements
         if (this.project != null && this.project.getPlaybook() != null) {
             return runContext.render(this.project.getPlaybook()).as(String.class).orElse(DEFAULT_PLAYBOOK);
         }
-        if (this.playbook != null) {
-            return runContext.render(this.playbook).as(String.class).orElse(DEFAULT_PLAYBOOK);
-        }
         return DEFAULT_PLAYBOOK;
     }
 
@@ -641,9 +644,7 @@ public class AnsibleRunner extends Task implements
         if (this.project != null && this.project.getSource() != null) {
             sourceStr = runContext.render(this.project.getSource()).as(String.class).orElse(null);
         }
-        if (sourceStr == null && this.projectSource != null) {
-            sourceStr = runContext.render(this.projectSource).as(String.class).orElse(null);
-        }
+        
 
         if (sourceStr != null && !sourceStr.isBlank()) {
             if (sourceStr.contains("\n") || sourceStr.trim().startsWith("---") || sourceStr.trim().startsWith("- ") || sourceStr.trim().startsWith("----")) {
@@ -788,9 +789,7 @@ public class AnsibleRunner extends Task implements
                 invContent = runContext.render(this.inventory.getInline()).as(String.class).orElse(null);
             }
         }
-        if (invContent == null && this.inventoryInline != null) {
-            invContent = runContext.render(this.inventoryInline).as(String.class).orElse(null);
-        }
+        
 
         if (invContent != null && !invContent.isBlank()) {
             Files.writeString(inventoryDir.resolve("hosts"), invContent.trim() + "\n", StandardCharsets.UTF_8);
@@ -866,9 +865,7 @@ public class AnsibleRunner extends Task implements
         if (this.inventory != null && this.inventory.getFile() != null) {
             invFile = runContext.render(this.inventory.getFile()).as(String.class).orElse(null);
         }
-        if (invFile == null && this.inventoryFile != null) {
-            invFile = runContext.render(this.inventoryFile).as(String.class).orElse(null);
-        }
+        
 
         if (invFile != null && !invFile.isBlank()) {
             if (invFile.startsWith("kestra://") || invFile.contains("://")) {
@@ -1000,50 +997,27 @@ public class AnsibleRunner extends Task implements
         }
 
         // B. extravars
-        Map<String, Object> rawExtraVars = new HashMap<>();
         if (this.env != null && this.env.getExtraVars() != null) {
-            rawExtraVars.putAll(runContext.render(this.env.getExtraVars()).asMap(String.class, Object.class));
-        }
-        if (this.extraVars != null) {
-            rawExtraVars.putAll(runContext.render(this.extraVars).asMap(String.class, Object.class));
-        }
-        if (!rawExtraVars.isEmpty()) {
-            Map<String, Object> renderedExtraVars = runContext.render(rawExtraVars);
-            Files.writeString(envDir.resolve("extravars"), JacksonMapper.ofJson().writeValueAsString(renderedExtraVars), StandardCharsets.UTF_8);
+            Map<String, Object> rawExtraVars = runContext.render(this.env.getExtraVars()).asMap(String.class, Object.class);
+            if (rawExtraVars != null && !rawExtraVars.isEmpty()) {
+                Files.writeString(envDir.resolve("extravars"), JacksonMapper.ofJson().writeValueAsString(rawExtraVars), StandardCharsets.UTF_8);
+            }
         }
 
         // C. envvars
-        Map<String, String> rawEnvVars = new HashMap<>();
         if (this.env != null && this.env.getEnvVars() != null) {
-            rawEnvVars.putAll(runContext.render(this.env.getEnvVars()).asMap(String.class, String.class));
-        }
-        if (this.envVars != null) {
-            rawEnvVars.putAll(runContext.render(this.envVars).asMap(String.class, String.class));
-        }
-        if (!rawEnvVars.isEmpty()) {
-            Map<String, String> renderedEnvVars = new HashMap<>();
-            for (Map.Entry<String, String> entry : rawEnvVars.entrySet()) {
-                String val = entry.getValue() != null ? runContext.render(entry.getValue()) : null;
-                renderedEnvVars.put(entry.getKey(), val);
+            Map<String, String> rawEnvVars = runContext.render(this.env.getEnvVars()).asMap(String.class, String.class);
+            if (rawEnvVars != null && !rawEnvVars.isEmpty()) {
+                Files.writeString(envDir.resolve("envvars"), JacksonMapper.ofJson().writeValueAsString(rawEnvVars), StandardCharsets.UTF_8);
             }
-            Files.writeString(envDir.resolve("envvars"), JacksonMapper.ofJson().writeValueAsString(renderedEnvVars), StandardCharsets.UTF_8);
         }
 
         // D. passwords (secure secret mapping rendered at point of write)
-        Map<String, String> rawPasswords = new HashMap<>();
         if (this.env != null && this.env.getPasswords() != null) {
-            rawPasswords.putAll(runContext.render(this.env.getPasswords()).asMap(String.class, String.class));
-        }
-        if (this.passwords != null) {
-            rawPasswords.putAll(runContext.render(this.passwords).asMap(String.class, String.class));
-        }
-        if (!rawPasswords.isEmpty()) {
-            Map<String, String> renderedPasswords = new HashMap<>();
-            for (Map.Entry<String, String> entry : rawPasswords.entrySet()) {
-                String val = entry.getValue() != null ? runContext.render(entry.getValue()) : null;
-                renderedPasswords.put(entry.getKey(), val);
+            Map<String, String> rawPasswords = runContext.render(this.env.getPasswords()).asMap(String.class, String.class);
+            if (rawPasswords != null && !rawPasswords.isEmpty()) {
+                Files.writeString(envDir.resolve("passwords"), JacksonMapper.ofJson().writeValueAsString(rawPasswords), StandardCharsets.UTF_8);
             }
-            Files.writeString(envDir.resolve("passwords"), JacksonMapper.ofJson().writeValueAsString(renderedPasswords), StandardCharsets.UTF_8);
         }
 
         // E. ssh_key (written with secure 0600 POSIX permissions)
@@ -1051,9 +1025,7 @@ public class AnsibleRunner extends Task implements
         if (this.env != null && this.env.getSshKey() != null) {
             rawKey = runContext.render(this.env.getSshKey()).as(String.class).orElse(null);
         }
-        if (rawKey == null && this.sshKey != null) {
-            rawKey = runContext.render(this.sshKey).as(String.class).orElse(null);
-        }
+        
         if (rawKey != null && !rawKey.isBlank()) {
             Path sshKeyPath = envDir.resolve("ssh_key");
             Files.writeString(sshKeyPath, rawKey.trim() + "\n", StandardCharsets.UTF_8);
@@ -1282,10 +1254,10 @@ public class AnsibleRunner extends Task implements
         @Schema(title = "Return code of the runner process")
         private Integer rc;
 
-        @Schema(title = "Total failed host count")
+        @Schema(title = "Total failed task count")
         private Integer failures;
 
-        @Schema(title = "Total changed host count")
+        @Schema(title = "Total changed task count")
         private Integer changed;
 
         @Schema(title = "List of hostnames that experienced task failures")

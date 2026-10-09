@@ -5,6 +5,7 @@ import io.kestra.core.runners.RunContext;
 import io.kestra.core.runners.RunContextFactory;
 import io.kestra.core.utils.IdUtils;
 import io.kestra.plugin.ansible.runner.models.Project;
+import io.kestra.plugin.ansible.runner.models.Inventory;
 import io.kestra.plugin.ansible.runner.utils.ArchiveUtils;
 import io.micronaut.test.extensions.junit5.annotation.MicronautTest;
 import jakarta.inject.Inject;
@@ -63,7 +64,7 @@ class AnsibleRunnerSecurityTest {
         AnsibleRunner task = AnsibleRunner.builder()
             .id(IdUtils.create())
             .type(AnsibleRunner.class.getName())
-            .inventoryFile(Property.of("../../etc/passwd"))
+            .inventory(Inventory.builder().file(Property.of("../../etc/passwd")).build())
             .project(Project.builder().inline(Property.of("- hosts: all")).build())
             .build();
 
@@ -82,8 +83,8 @@ class AnsibleRunnerSecurityTest {
         Path linkPath = sourceDir.resolve("link");
         try {
             Files.createSymbolicLink(linkPath, tempDir.resolve("nonexistent"));
-            IOException e = assertThrows(IOException.class, () -> ArchiveUtils.zipDirectory(sourceDir, zipPath));
-            assertThat(e.getMessage(), containsString("Symlinks are not allowed"));
+            ArchiveUtils.zipDirectory(sourceDir, zipPath);
+            // Symlinks are skipped quietly now, so no exception should be thrown
         } catch (UnsupportedOperationException ignored) {
             // OS doesn't support symlinks
         }

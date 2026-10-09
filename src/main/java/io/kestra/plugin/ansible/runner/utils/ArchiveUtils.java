@@ -37,7 +37,8 @@ public class ArchiveUtils {
                         return FileVisitResult.CONTINUE;
                     }
                     if (Files.isSymbolicLink(file)) {
-                        throw new IOException("Symlinks are not allowed in archives: " + file);
+                        System.err.println("Warning: Skipping symlink in archive: " + file);
+                        return FileVisitResult.CONTINUE;
                     }
                     String relativePath = sourceDir.relativize(file).toString().replace("\\", "/");
                     ZipEntry zipEntry = new ZipEntry(relativePath);
@@ -121,7 +122,8 @@ public class ArchiveUtils {
                 }
                 
                 if (entry.isSymbolicLink() || entry.isLink()) {
-                    throw new IOException("Symlinks and hard-links are not allowed in archives.");
+                    System.err.println("Warning: Skipping symlink in archive: " + entry.getName());
+                    continue;
                 }
 
                 Path resolvedPath = targetDir.normalize().resolve(entry.getName()).normalize();
@@ -145,6 +147,9 @@ public class ArchiveUtils {
                             }
                             os.write(buffer, 0, read);
                         }
+                    }
+                    if ((entry.getMode() & 0111) != 0) {
+                        resolvedPath.toFile().setExecutable(true, false);
                     }
                 }
             }

@@ -41,7 +41,7 @@ public class AnsibleRunnerLogConsumer extends DefaultLogConsumer {
     private final int batchSize;
     private final Path spoolFile;
     private final List<String> secrets;
-    private final BufferedWriter spoolWriter;
+    private BufferedWriter spoolWriter;
     private final ScheduledExecutorService flusher;
 
     private final StringBuilder batch = new StringBuilder();
@@ -89,6 +89,7 @@ public class AnsibleRunnerLogConsumer extends DefaultLogConsumer {
 
     @Override
     public synchronized void accept(String line, Boolean isStdErr, Instant instant) {
+        try { super.accept(line, isStdErr); } catch (Exception ignored) {}
         if (line == null || line.isBlank()) {
             return;
         }
@@ -231,7 +232,9 @@ public class AnsibleRunnerLogConsumer extends DefaultLogConsumer {
             spoolWriter.write(line.endsWith("\r") ? line.substring(0, line.length() - 1) : line);
             spoolWriter.newLine();
         } catch (IOException e) {
-            throw new UncheckedIOException(e);
+            runContext.logger().warn("Failed to write to spool log, disabling spooling: {}", e.getMessage());
+            try { spoolWriter.close(); } catch (Exception ignored) {}
+            spoolWriter = null;
         }
     }
 
