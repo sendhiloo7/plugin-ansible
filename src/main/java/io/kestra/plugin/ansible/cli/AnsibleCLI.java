@@ -22,6 +22,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -699,7 +700,7 @@ public class AnsibleCLI extends Task implements RunnableTask<AnsibleCLI.AnsibleO
         }
         // right after the binary, so a pipe, `&&` chain or trailing newline cannot detach the flags from it
         String flagString = String.join(" ", flags);
-        return playbook.replaceAll(m -> java.util.regex.Matcher.quoteReplacement(m.group() + " " + flagString));
+        return playbook.replaceAll(m -> Matcher.quoteReplacement(m.group() + " " + flagString));
     }
 
     @Override

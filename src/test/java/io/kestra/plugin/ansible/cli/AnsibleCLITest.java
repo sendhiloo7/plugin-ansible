@@ -136,65 +136,55 @@ class AnsibleCLITest {
             .commands(Property.ofValue(List.of("dummy")))
             .build();
 
-        RunContext runContext = TestsUtils.mockRunContext(runContextFactory, task, Map.of());
-        String flags = "--check --diff --limit 'web;&db' --tags 'tag1,tag2' --skip-tags 'skip1' --forks 10 -vvv";
+        var runContext = TestsUtils.mockRunContext(runContextFactory, task, Map.of());
+        var flags = "--check --diff --limit 'web;&db' --tags 'tag1,tag2' --skip-tags 'skip1' --forks 10 -vvv";
 
-        // 1. Basic command
         assertThat(task.addTypedPlaybookOptions(runContext, "ansible-playbook site.yml"),
             is("ansible-playbook " + flags + " site.yml"));
 
-        // 2. Ad-hoc command
         assertThat(task.addTypedPlaybookOptions(runContext, "ansible all -m ping"),
             is("ansible all -m ping"));
 
-        // 3. Piped commands
         assertThat(task.addTypedPlaybookOptions(runContext, "ansible-playbook -i inv site.yml | tee out.log"),
             is("ansible-playbook " + flags + " -i inv site.yml | tee out.log"));
 
-        // 4. Shell chain
         assertThat(task.addTypedPlaybookOptions(runContext, "cd playbooks && ansible-playbook site.yml"),
             is("cd playbooks && ansible-playbook " + flags + " site.yml"));
 
-        // 5. Env var prefix
         assertThat(task.addTypedPlaybookOptions(runContext, "ANSIBLE_FORCE_COLOR=1 ansible-playbook site.yml"),
             is("ANSIBLE_FORCE_COLOR=1 ansible-playbook " + flags + " site.yml"));
 
-        // 6. Multiple playbooks
         assertThat(task.addTypedPlaybookOptions(runContext, "ansible-playbook a.yml && ansible-playbook b.yml"),
             is("ansible-playbook " + flags + " a.yml && ansible-playbook " + flags + " b.yml"));
 
-        // 7. Path prefix
         assertThat(task.addTypedPlaybookOptions(runContext, "/usr/bin/ansible-playbook site.yml"),
             is("/usr/bin/ansible-playbook " + flags + " site.yml"));
 
-        // 8. Parentheses wrap
         assertThat(task.addTypedPlaybookOptions(runContext, "(ansible-playbook site.yml)"),
             is("(ansible-playbook " + flags + " site.yml)"));
-            
-        // 9. limit with a newline
-        AnsibleCLI taskWithNewline = AnsibleCLI.builder()
+
+        var taskWithNewline = AnsibleCLI.builder()
             .id(IdUtils.create())
             .type(AnsibleCLI.class.getName())
             .limit(Property.ofValue("web\ndb"))
             .commands(Property.ofValue(List.of("dummy")))
             .build();
-        RunContext runContext2 = TestsUtils.mockRunContext(runContextFactory, taskWithNewline, Map.of());
+        var runContext2 = TestsUtils.mockRunContext(runContextFactory, taskWithNewline, Map.of());
         assertThrows(IllegalArgumentException.class, () -> taskWithNewline.addTypedPlaybookOptions(runContext2, "ansible-playbook site.yml"));
-        
-        // 10. Default options (empty flags)
-        AnsibleCLI defaultTask = AnsibleCLI.builder()
+
+        var defaultTask = AnsibleCLI.builder()
             .id(IdUtils.create())
             .type(AnsibleCLI.class.getName())
             .commands(Property.ofValue(List.of("dummy")))
             .build();
-        RunContext runContext3 = TestsUtils.mockRunContext(runContextFactory, defaultTask, Map.of());
+        var runContext3 = TestsUtils.mockRunContext(runContextFactory, defaultTask, Map.of());
         assertThat(defaultTask.addTypedPlaybookOptions(runContext3, "ansible-playbook site.yml"),
             is("ansible-playbook site.yml"));
     }
 
     @Test
     void run_typedPlaybookOptions_areAppliedToRealRun() throws Exception {
-        AnsibleCLI execute = AnsibleCLI.builder()
+        var execute = AnsibleCLI.builder()
             .id(IdUtils.create())
             .type(AnsibleCLI.class.getName())
             .docker(
@@ -220,8 +210,8 @@ class AnsibleCLITest {
             .commands(Property.ofValue(List.of("ansible-playbook -i localhost -c local playbook.yml")))
             .build();
 
-        RunContext runContext = TestsUtils.mockRunContext(runContextFactory, execute, Map.of());
-        AnsibleCLI.AnsibleOutput runOutput = execute.run(runContext);
+        var runContext = TestsUtils.mockRunContext(runContextFactory, execute, Map.of());
+        var runOutput = execute.run(runContext);
 
         assertThat(runOutput.getExitCode(), is(0));
         
