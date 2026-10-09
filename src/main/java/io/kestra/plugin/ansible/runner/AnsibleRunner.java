@@ -394,7 +394,7 @@ public class AnsibleRunner extends Task implements
         // throw before telemetry is parsed. If ansible-runner produced an rc artifact, exit 0 and let
         // failOnErrors decide; otherwise (runner never started) propagate the real exit code.
         List<String> runnerCommand = List.of(
-            "ansible-runner run ./runner -p " + resolvedPlaybook + " --ident " + ident
+            "ansible-runner run ./runner -p '" + resolvedPlaybook.replace("'", "'\\''") + "' --ident " + ident
                 + "; __rc=$?; if [ -f ./runner/artifacts/" + ident + "/rc ]; then if [ $__rc -eq 2 ] || [ $__rc -eq 4 ]; then exit 0; fi; fi; exit $__rc"
         );
 
@@ -515,6 +515,9 @@ public class AnsibleRunner extends Task implements
         }
 
         // 8. Store the complete log file if outputLogFile is true, or automatically if UI streaming was truncated
+        if (logConsumer != null) {
+            logConsumer.close();
+        }
         URI logFileUri = null;
         if ((shouldOutputLogFile || logConsumer.wasTruncated()) && Files.exists(logSpoolFile)) {
             logFileUri = runContext.storage().putFile(logSpoolFile.toFile());
@@ -585,7 +588,8 @@ public class AnsibleRunner extends Task implements
                     throw new IllegalArgumentException("Invalid galaxy dependency: " + dep + ". Must match " + PKG_ALLOWLIST.pattern());
                 }
             }
-            cmds.add("ansible-galaxy collection install " + String.join(" ", galaxyDeps));
+            List<String> quotedGalaxyDeps = galaxyDeps.stream().map(d -> "'" + d.replace("'", "'\\''") + "'").toList();
+            cmds.add("ansible-galaxy collection install " + String.join(" ", quotedGalaxyDeps));
         }
 
         // Auto-install Python requirements
@@ -600,7 +604,8 @@ public class AnsibleRunner extends Task implements
                     throw new IllegalArgumentException("Invalid python dependency: " + dep + ". Must match " + PKG_ALLOWLIST.pattern());
                 }
             }
-            cmds.add("pip install --no-cache-dir " + String.join(" ", pythonDeps));
+            List<String> quotedPythonDeps = pythonDeps.stream().map(d -> "'" + d.replace("'", "'\\''") + "'").toList();
+            cmds.add("pip install --no-cache-dir " + String.join(" ", quotedPythonDeps));
         }
 
         return cmds;
