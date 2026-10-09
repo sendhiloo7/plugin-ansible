@@ -29,6 +29,8 @@ import io.kestra.plugin.scripts.exec.scripts.runners.CommandsWrapper;
 import io.kestra.plugin.scripts.runner.docker.Docker;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
 import lombok.*;
 import lombok.experimental.SuperBuilder;
@@ -255,12 +257,12 @@ public class AnsibleRunner extends Task implements
     @Schema(title = "Verbosity level (0 to 4)")
     @Builder.Default
     @PluginProperty(group = "execution")
-    private Property<Integer> verbosity = Property.ofValue(0);
+    private Property<@Min(0) @Max(4) Integer> verbosity = Property.ofValue(0);
 
-    @Schema(title = "Number of parallel forks")
+    @Schema(title = "Number of parallel forks (default 5)")
     @Builder.Default
     @PluginProperty(group = "execution")
-    private Property<Integer> forks = Property.ofValue(5);
+    private Property<@Min(1) Integer> forks = Property.ofValue(5);
 
     // --- Project Contract (Defaults to site.yml with auto-locating) ---
     @Schema(
